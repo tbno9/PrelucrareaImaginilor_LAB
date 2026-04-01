@@ -14,5 +14,6 @@ pip install Pillow matplotlib numpy
 
 ## Rulare
 ```bash
-python main.py
+cd Aplicatie_photoshop
+python app.py
 ```
