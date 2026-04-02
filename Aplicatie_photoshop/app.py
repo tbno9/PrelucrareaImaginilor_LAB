@@ -129,6 +129,7 @@ def open_image():
         status_var.set(f"{filename}")
         afiseaza(matrice, canvas_stanga)
         canvas_dreapta.delete('all')
+        curatare_canvas()
     except Exception as e:
         print(f"Error: {e}")
 
