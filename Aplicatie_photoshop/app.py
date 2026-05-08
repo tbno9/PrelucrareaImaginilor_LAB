@@ -6,9 +6,25 @@ import numpy as np
 from PIL import Image, ImageTk
 import math
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from collections import deque
+import math
+
 
 matrice = None
 matrice_inversa = None
+
+CULORI = [
+    (255, 0,   0  ), #rosu
+    (0,   255, 0  ), #green
+    (0,   0,   255), #blue
+    (255, 255, 0  ), #galben
+    (255, 0,   255), #magenta
+    (0,   255, 255), #cyan
+    (255, 128, 0  ), #portocaliu
+    (128, 0,   255), #mov deschis
+    (0,   255, 128), #verde deschis
+    (255, 0,   128), #rozuliu
+]
 
 def read_bmp(file_path):
     with open(file_path, 'rb') as f:
@@ -136,6 +152,7 @@ def open_image():
 
 # --------------LAB 2-------GRIURI
 def grayscale(matrice, varianta_gray):
+    curatare_canvas()
     rezultat = [] # [[0,1],[0,1],[1,0],[1,0]] = rezultat[[], []]
     for rand in matrice:
         new_rand = []
@@ -152,6 +169,7 @@ def grayscale(matrice, varianta_gray):
     return rezultat
 
 def conversie_cmyk(matrice):
+    curatare_canvas()
     rezultat = []
     for rand in matrice:
         new_rand = []
@@ -168,7 +186,7 @@ def conversie_cmyk(matrice):
                 cyan=(c-k)/(1-k)
                 magenta=(m-k)/(1-k)
                 yellow=(y-k)/(1-k)
-            new_rand.append([int(cyan)*255, int(magenta)*255, int(yellow)*255, int(k)*255]) 
+            new_rand.append([int(cyan*255), int(magenta*255), int(yellow*255)]) 
         rezultat.append(new_rand)
     return rezultat
 
@@ -176,6 +194,7 @@ def conversie_cmyk(matrice):
 #----------LAB 3-----------------
 
 def conversie_yuv(matrice):
+    curatare_canvas()
     rezultat = []
     for rand in matrice:
         new_rand = []
@@ -199,6 +218,7 @@ def conversie_yuv(matrice):
 
 
 def conversie_ycbcr(matrice):
+    curatare_canvas()
     rezultat = []
     for rand in matrice:
         new_rand = []
@@ -222,6 +242,7 @@ def conversie_ycbcr(matrice):
 
 
 def conversie_inversa(matrice):
+    curatare_canvas()
     rezultat = []
     for rand in matrice:
         new_rand = []
@@ -246,6 +267,7 @@ def calculeaza_canal(matrice,canal):
     return rezultat
 
 def afiseaza_inversa(varianta):
+    curatare_canvas()
     global matrice_inversa
     if varianta == 1:
         if matrice is None:
@@ -262,7 +284,9 @@ def afiseaza_inversa(varianta):
         elif varianta == 4:
             afiseaza(calculeaza_canal(matrice_inversa, 2), canvas_dreapta)
 
+
 def binarizare(matrice, prag=130):
+    curatare_canvas()
     rezultat = []
     for rand in matrice:
         new_rand=[]
@@ -277,6 +301,7 @@ def binarizare(matrice, prag=130):
     return rezultat
 
 def conversie_hsv(matrice):
+    curatare_canvas()
     rezultat = []
     for rand in matrice:
         new_rand = []
@@ -310,6 +335,7 @@ def conversie_hsv(matrice):
             new_rand.append([h_norm, s_norm, v_norm])
         rezultat.append(new_rand)
     return rezultat
+
 
 def histograma(matrice):
     curatare_canvas()    # pt ca atunci cand deschid img noua, sa nu ramana histogr veche
@@ -422,8 +448,303 @@ def afiseaza(mat, canvas):
     canvas.create_image(300, 300, anchor="center", image=imgtk)
     canvas.image = imgtk
 
+#=====================LAB 5=============
+def gray(pixel):
+    return int((pixel[0] + pixel[1] + pixel[2]) / 3)
 
-#=============================INTERFATA
+
+def etichetare(matrice):
+    height = len(matrice)
+    width  = len(matrice[0])
+
+    labels = [[0] * width for _ in range(height)]
+    label  = 0
+
+    for y in range(height):
+        for x in range(width):
+
+            if gray(matrice[y][x]) < 128 and labels[y][x] == 0:
+                label += 1
+                labels[y][x] = label
+
+                queue = deque()
+                queue.append((y, x))
+
+                while queue:
+                    cy, cx = queue.popleft()
+
+                    for dy in [-1, 0, 1]:
+                        for dx in [-1, 0, 1]:
+                            if dy == 0 and dx == 0:
+                                continue
+
+                            ny = cy + dy
+                            nx = cx + dx
+
+                            if 0 <= ny < height and 0 <= nx < width:
+                                if gray(matrice[ny][nx]) < 128 and labels[ny][nx] == 0:
+                                    labels[ny][nx] = label
+                                    queue.append((ny, nx))
+
+    return labels, label  # label = nr obiecte
+
+
+def colorare_etichete(labels):
+    height = len(labels)
+    width  = len(labels[0])
+
+    imagine_colorata = [[[255, 255, 255] for _ in range(width)] for _ in range(height)]
+
+    for y in range(height):
+        for x in range(width):
+            et = labels[y][x]
+            if et > 0:
+                culoare = CULORI[(et - 1) % len(CULORI)]
+                imagine_colorata[y][x] = list(culoare)
+
+    return imagine_colorata
+
+def etichetare_colorare_imagine():
+    if matrice is None:
+        return
+
+    curatare_canvas()
+
+    labels, nr_obiecte = etichetare(matrice)
+    imagine_colorata = colorare_etichete(labels)
+
+    afiseaza(imagine_colorata, canvas_dreapta)
+
+    # afișare info
+    text = tk.Text(sectiune_analiza, font=("Arial", 12))
+    text.pack(fill="both", expand=True)
+    text.insert("end", f"Numar obiecte detectate: {nr_obiecte}\n")
+    text.config(state="disabled")
+
+def egalizare_histograma():
+    curatare_canvas()
+    # histograma
+    histograma = [0] * 256
+
+    for rand in matrice:
+        for pixel in rand:
+            gray = int((pixel[0] + pixel[1] + pixel[2]) / 3)
+            histograma[gray] += 1
+
+    #histograma cumulativa
+    hc = [0] * 256
+    hc[0] = histograma[0]
+
+    for i in range(1, 256):
+        hc[i] = hc[i - 1] + histograma[i]
+
+    #transformari pt noile niveluri de gri
+    nr_randuri = len(matrice)
+    nr_coloane = len(matrice[0])
+    total_pixeli = nr_randuri * nr_coloane
+
+    transformare = [0] * 256
+
+    for nivel in range(256):
+        if (total_pixeli - hc[0]) != 0:   # evitam impartirea la 0
+            transformare[nivel] = int((hc[nivel] - hc[0]) * 255 / (total_pixeli - hc[0]))
+        else:
+            transformare[nivel] = 0
+
+    matrice_noua = []
+
+    for rand in matrice:
+        rand_nou = []
+        for pixel in rand:
+            gray = int((pixel[0] + pixel[1] + pixel[2]) / 3)
+            nivel_nou = transformare[gray]
+            rand_nou.append((nivel_nou, nivel_nou, nivel_nou))  # pixel gri = R=G=B
+        matrice_noua.append(rand_nou)
+
+    return matrice_noua
+
+def apasa_egalizare():
+
+    matrice_egalizata = egalizare_histograma(matrice)
+    afiseaza(matrice_egalizata, canvas_dreapta)
+    #afisare histograma in urma egalizarii
+    histograma(matrice_egalizata)
+
+
+# detectarea marginilor
+def filtru_laplace(matrice):
+    if matrice is None:
+        return
+        
+    curatare_canvas()
+    
+    height = len(matrice)
+    width = len(matrice[0])
+    
+    # initializez rezultatul final
+    rezultat = [[[0, 0, 0] for _ in range(width)] for _ in range(height)]
+    
+    #coeficientii mastii
+    v = [
+        [-1, -1, -1],
+        [-1,  8, -1],
+        [-1, -1, -1]
+    ]
+    
+    # se parcurge imaginea, excluzand marginile sale
+    for y in range(1, height - 1):
+        for x in range(1, width - 1):
+            suma = 0
+            
+            #aplicare masca
+            for dy in [-1, 0, 1]:
+                for dx in [-1, 0, 1]:
+                    pixel = matrice[y + dy][x + dx] #pixel vecin
+                    gri = int((pixel[0] + pixel[1] + pixel[2]) / 3) #calcularea griului folosinf media
+                    suma += v[dy + 1][dx + 1] * gri #inmultire cu coresp din masca
+            
+            #ca sa nu depaseasca intervalul 0 255 pt culori
+            suma_clamped = int(max(0, min(255, suma)))
+            
+            rezultat[y][x] = [suma_clamped, suma_clamped, suma_clamped]
+    return rezultat
+
+def eliminare_zgomot_gaussian(matrice):
+    if matrice is None:
+        return
+        
+    curatare_canvas()
+    
+    height = len(matrice)
+    width = len(matrice[0])
+    
+    rezultat = []
+    kernel_size = 3
+    half_kernel = kernel_size // 2
+    total_pixels = kernel_size * kernel_size
+    
+    for y in range(height):
+        new_rand = []
+        for x in range(width):
+            sum_red = 0
+            sum_green = 0
+            sum_blue = 0
+            
+            #suma intensitatilor pixelilor din jur
+            for dy in range(-half_kernel, half_kernel + 1):
+                for dx in range(-half_kernel, half_kernel + 1):
+                    #limitare ca sa nu iasa din imagine
+                    offset_y = min(max(y + dy, 0), height - 1)
+                    offset_x = min(max(x + dx, 0), width - 1)
+                    
+                    pixel = matrice[offset_y][offset_x]
+                    sum_red += pixel[0]
+                    sum_green += pixel[1]
+                    sum_blue += pixel[2]
+            
+            #media valorilor
+            avg_red = int(sum_red / total_pixels)
+            avg_green = int(sum_green / total_pixels)
+            avg_blue = int(sum_blue / total_pixels)
+            
+            new_rand.append([avg_red, avg_green, avg_blue])
+        rezultat.append(new_rand)
+
+    return rezultat
+
+# SNR=SIGNAL TO NOISE RATIO
+def calcul_snr_o_imagine(matrice):
+    if matrice is None:
+        return 0.0
+        
+    height = len(matrice)
+    width = len(matrice[0])
+    
+    signal_sum = 0
+    noise_sum = 0
+    
+    for y in range(height):
+        for x in range(width):
+            pixel = matrice[y][x]
+            #se foloseste canalul ROSU(RGB)
+            signal = pixel[0] 
+            noise = abs(255 - signal)
+            
+            signal_sum += signal
+            noise_sum += noise
+            
+    total_pixels = width * height
+    signal_mean = signal_sum / total_pixels
+    noise_mean = noise_sum / total_pixels
+    
+    #evitare impartire la 0 daca o imaginea e complet alba
+    #impartire la 0 e impartire la ceva foarte mic, deci orez va tinde spre infinit
+    if noise_mean == 0:
+        return float('inf') 
+        
+    snr = 10 * math.log10((signal_mean * signal_mean) / (noise_mean * noise_mean))
+    return snr
+
+
+def calcul_snr_doua_imagini(matrice1, matrice2):
+    if matrice1 is None or matrice2 is None:
+        return 0.0 #pentru ca nu poate compara 2 imagini, daca una nu exista; val de siguranta
+        
+    height = len(matrice1)
+    width = len(matrice1[0])
+    
+    signal_sum = 0
+    noise_sum = 0
+    
+    for y in range(height):
+        for x in range(width):
+            p1 = matrice1[y][x]
+            p2 = matrice2[y][x]
+            
+            #se calculeaza intensitatea fiecarui pixel
+            val1 = int((p1[0] + p1[1] + p1[2]) / 3)
+            val2 = int((p2[0] + p2[1] + p2[2]) / 3)
+            
+            signal = abs(val1 - val2)
+            noise = abs(val1)
+            
+            signal_sum += signal
+            noise_sum += noise
+            
+    total_pixels = width * height
+    signal_mean = signal_sum / total_pixels
+    noise_mean = noise_sum / total_pixels
+    
+    #evitare imp la 0
+    if noise_mean == 0:
+        return float('inf')
+        
+    #evitare log0
+    if signal_mean == 0:
+        return 0.0
+        
+    snr = 10 * math.log10((signal_mean * signal_mean) / (noise_mean * noise_mean))
+    return snr
+
+
+def afisare_snr():
+    if matrice is None:
+        return
+    curatare_canvas()
+    snr_simplu = calcul_snr_o_imagine(matrice)
+    
+    #pentru comparare, compar cu imaginea  binarizata
+    matrice_modificata = binarizare(matrice) 
+    snr_dublu = calcul_snr_doua_imagini(matrice, matrice_modificata)
+    
+    text = tk.Text(sectiune_analiza, font=("Arial", 12))
+    text.pack(fill="both", expand=True)
+    text.insert("end", f"Calcule SNR\n\n")
+    text.insert("end", f"SNR imaginea originala: {snr_simplu:.4f} dB\n")
+    text.insert("end", f"SNR comparatie original vs binarizata: {snr_dublu:.4f} dB\n")
+    text.config(state="disabled")
+
+#=============================INTERFATA===================
 root = tk.Tk()
 root.title("Photoshop fake")
 w =1200
@@ -477,9 +798,21 @@ bara_meniu.add_cascade(label="Efecte", menu=meniu_efecte)
 # analiza
 meniu_analiza = tk.Menu(bara_meniu, tearoff=0)
 meniu_analiza.add_command(label="Histograma", command=lambda: histograma(matrice))
+meniu_analiza.add_command(label="Egalizare histograma", command=lambda: afiseaza(egalizare_histograma(), canvas_dreapta))
 meniu_analiza.add_command(label="Momente", command=afisare_momente)
 meniu_analiza.add_command(label="Proiectii", command=lambda: proiectii(binarizare(matrice)))
+meniu_analiza.add_command(label="Etichetare", command=etichetare_colorare_imagine)
+meniu_analiza.add_command(label="Calcul SNR", command=afisare_snr)
 bara_meniu.add_cascade(label="Analiza", menu=meniu_analiza)
+
+
+#filtre
+meniu_filtre = tk.Menu(bara_meniu,tearoff=0)
+meniu_filtre.add_command(label="Laplace", command=lambda: afiseaza(filtru_laplace(matrice),canvas_dreapta))
+meniu_filtre.add_command(label="Eliminare zgomot Gaussian", command=lambda: afiseaza(eliminare_zgomot_gaussian(matrice),canvas_dreapta))
+bara_meniu.add_cascade(label="Filtre", menu=meniu_filtre)
+
+
 root.config(menu=bara_meniu)
 
 status_var = tk.StringVar(value="Nu ai deschis un fisier inca!!!")
